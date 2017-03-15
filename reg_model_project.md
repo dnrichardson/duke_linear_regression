@@ -1,30 +1,29 @@
----
-title: "Modeling and prediction for movies"
-author: "Dale Richardson"
-date: '`r format(Sys.Date(), "%B %d, %Y")`'
-output: 
-  html_document: 
-    toc: true
-    keep_md: true
-    fig_height: 4
-    highlight: pygments
-    theme: spacelab
----
+# Modeling and prediction for movies
+Dale Richardson  
+`r format(Sys.Date(), "%B %d, %Y")`  
 
 ## Setup
 
 ### Load packages
 
-```{r load-packages, message = FALSE}
+
+```r
 library(ggplot2)
+```
+
+```
+## Warning: package 'ggplot2' was built under R version 3.3.2
+```
+
+```r
 library(dplyr)
 library(statsr)
-library(GGally) #for the ggpairs function
 ```
 
 ### Load data
 
-```{r load-data}
+
+```r
 load("movies.Rdata")
 ```
 
@@ -33,7 +32,7 @@ load("movies.Rdata")
 ## Part 1: Data
 
 We have been provided a dataset of 651 **randomly sampled** movies produced and released prior to 2016. 
-This dataset contains 32 variables, some of which will not be useful for statistical modeling (i.e. `imdb_url`). We have not been provided any further details as to how the movies were exactly randomly selected, so there may be some unknown bias present in the dataset (unlikely, but possible). We will assume that our findings based on this dataset will be generalizable to the population of movies produced and released prior to 2016 in the United States.
+This dataset contains 32 variables, some of which will not be useful for statistical modeling (i.e. `imdb_url`). We have not been provided any further details as to how the movies were exactly randomly selected, so there may be some unknown bias present in the dataset (unlikely, but possible).
 
 While the movies in this dataset have been selected randomly, it is **not possible to infer causality**. No random assignment into experimental/control groups was conducted regarding these movies. Therefore, we are unable to infer causality and instead can only highlight associations between variables.
 
