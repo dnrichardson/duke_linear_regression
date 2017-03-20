@@ -41,63 +41,336 @@ While the movies in this dataset have been selected randomly, it is **not possib
 
 ## Part 2: Research question
 
-Should be phrased in a non-causal way (1 pt)
-Should be well defined / not vague (1 pt)
-Is clear why this is of interest to the author / audience (1 pt)
+As we have been "contracted" as Data Scientists for Paramount Pictures and given the task to decipher what elements 
+contribute to movie popularity, the research question I propose is the following:
 
+#### What factors are associated with movie popularity and can we use these factors to predict if a movie is popular?
 
+One of the first things we will need to define is what exactly "popularity" is. How can we establish if a movie is popular and once we have this definition, which factors contribute most to a movie's popularity?
+
+For the sake of this project, I will use a movie's [IMDB](http://www.imdb.com) rating (`imdb_rating`) as a proxy for its popularity and success. Thefore, the higher the movie's IMDB rating, the more popular and successful it is. This is certainly a gross oversimiplification, but for the purposes of this project, it will serve nicely. We will entertain the idea that movie popularity and success extend well beyond the time the movie is shown in the theater. 
+
+The above research question is of interest as understanding the characteristics that lead to a movie's popularity and success can assist studios and production teams on how to make more informed decisions during the movie-making process. For example, which movie genres tend to be the most popular? What is the best time of year to release a movie to ensure a higher level of box office success? How do sites like Rotten Tomatoes and IMDB affect DVD sales and rentals? The list of questions goes on and well beyond the scope of this project and involves tools and techniques we have not yet learned.
 
 * * *
 
 ## Part 3: Exploratory data analysis
+Prior to exploring the data, I will first remove unnecessary variables from the dataframe, such as the `actor1-5` 
+variables and the `url` variables. The `actor` variables denote the main actors/actresses in the adbridged cast of the movie, while the `url` variables indicate the Rotten Tomatoes or IMDB links for the movies. It is unlikely that either of these variables will be useful in the linear model.
 
-What is the date range for movies in this dataset?
-Which variables are collinear? i.e. critics score and audience score?
+### Data cleaning
+```{r cleaning}
+# drop useless variables
+movies.clean <- movies %>% select(-starts_with("actor"), -contains("url") )
+
+# check that all is ok
+str(movies.clean)
+
+# which columns contain missing values, i.e. NA?
+colSums(is.na(movies.clean))
+
+# show only those having NAs
+colnames(movies.clean)[colSums(is.na(movies.clean)) > 0]
+
+```
+
+Looks like we are missing 1 `runtime`, 8 `studio` and 8 `dvd_rel_year`, `dvd_rel_month` and `dvd_rel_day` and 2 `director`
+observations. In principle, we could probably fill these data in by searching google but for the purposes of this assignment,
+I will leave them as NAs. However, I will check which runtime is missing and see if I can insert it as I will probably use
+this variable in my linear model.
+
+```{r imputation}
+# which movie is missing the runtime?
+movies.clean[which(is.na(movies$runtime)),]
+
+# checking google for "The End of America Documentary", we find that the running time is 71 minutes. I will add this value as I may use this variable in my linear model
+movies.clean$runtime[334] <- 71
+
+# check that all ok
+movies.clean[334,]
+
+```
+
+From the output above, we can see that the runtime for "The End of America Documentary" has been correctly inserted. Next, I will explore the data and see which variables I will use for linear modeling to predict movie popularity/success. 
+
+### Exploratory plots
+
+I will quickly begin by looking at the relationship between `critic_score` and `audience_score`, which I suspect will be highly correlated. I'll also look at the relationship between `critic_score` and `imdb_rating`. I also suspect these two will be highly correlated. In the end, I will combine the `critics_score` and `audience_score` into a single variable for use in my linear model to predict `imdb_rating`. 
+
+```{r exploratory-plots, fig.width = 12}
+
+# look at relationship between critic score and audience score
+ggplot(movies.clean, aes(critics_score, audience_score)) + geom_jitter() + 
+        geom_smooth(method = "lm") + ggtitle("Critics and Audience scores are strongly positively correlated")
+
+# look at relationship between critic score and imdb rating
+ggplot(movies.clean, aes(critics_score, imdb_rating)) + geom_jitter() + 
+        geom_smooth(method = "lm") + ggtitle("Critics score and IMDB rating are strongly positively correlated")
+
+# calculate correlation between critics_score and audience_score
+cor(movies.clean$critics_score, movies.clean$audience_score)
+
+# calculate correlation between critics_score and imdb_rating
+cor(movies.clean$critics_score, movies.clean$imdb_rating)
+
+```
+
+The above plots reveal strong, positive linear relationships between the variables as evidenced by the high correlation coefficients. However, let us now use the [GGally](http://ggobi.github.io/ggally/#ggally) package to create a pairwise correlation matrix of some potentially useful numerical variables in the `movies.clean` dataframe, rather than create plots one by one for each numerical variable of interest.
+
+### Correlation matrix of numerical variables
+An easy way to get an overiew of the data is to use the `ggpairs()` function from the `GGally` package. I will use this function
+to create a correlation matrix of the numerical variables in the `movies.clean` dataframe. These variables are the following:
+
+1. `runtime`
+2. `imdb_rating`
+3. `imdb_num_votes`
+4. `critics_score`
+5. `audience_score`
 
 
-3 pts for plots
-Plots should address the research questions (1 pt)
-Plots should be constructed correctly (1 pt)
-Plots should be formatted well – size not too large, not too small, etc. (1 pt)
-3 pts for summary statistics
-Summary statistics should address the research questions (1 pt)
-Summary statistics should be calculated correctly (1 pt)
-Summary statistics should be formatted well – not taking up pages and pages, etc. (1 pt)
-4 pts for narrative
-Each plot and/or R output should be accompanied by a narrative (1 pt)
-Narrative should interpret the visuals / R output correctly (1 pts)
-Narrative should address the research question (2 pts)
+```{r ggpairs, fig.height = 10, fig.width = 10, warning = FALSE}
+
+# plot only the numerical variables of interest from the dataframe
+ggpairs(movies.clean, columns = c(4,13,14,16,18 ))
+
+```
+
+##### Some variables are collinear
+The above correlation matrix reveals several collinear numerical variables, namely `critics_score`, `audience_score`,
+and `imdb_rating`. Therefore, I will calculate the mean of `critics_score` and `audience_score` and store this value in a new variable, `combined_score`. We will use `imdb_rating` as the proxy for movie popularity and try to predict the IMDB rating of a movie. The other numeric variables have low correlations, between `0.181` and `0.347`, so it is unlikely that they will substantially confound the linear model.
+
+### Creating a new variable, `combined_score`
+
+Here I create a `combined_score` variable that is the mean of the `critics_score` and `audience_score`. I foresee that this variable will be a strong predictor of the IMDB rating. 
+
+```{r combined_score}
+# create the combined_score variable as the arithmetic mean of critics_score and audience_score
+movies.clean$combined_score <- (movies.clean$critics_score + movies.clean$audience_score) / 2
+
+# what does the 5-number summary look like?
+summary(movies.clean$combined_score)
+
+```
+
+We can see from the 5-number summary the distribution of `combined_score`. For fun, let's see what the lowest-rated and highest rated movies are.
+
+```{r worst_and_best}
+worst <- movies.clean[which.min(movies.clean$combined_score),1]
+best <- movies.clean[which.max(movies.clean$combined_score),1]
+
+# The worst movie is:
+worst
+# The best movie is:
+best
+```
+
+It does not surprise me at all that *Battlefield Earth* is the lowest rated movie in this dataset and probably would be amongst
+an even larger sample of movies!! The converse could be said of *The Godfather, Part II*, which is a classic.
 
 * * *
 
 ## Part 4: Modeling
 
-Develop a multiple linear regression model to predict a numerical variable in the dataset. The response variable and the explanatory variables can be existing variables in the dataset, or new variables you create based on existing variables.
+I will establish a linear model to predict the `imdb_rating` of a movie not included in the sample of movies.
 
-Specify which variables to consider for the full model (1 pt)
-Reasoning for excluding certain variables (2 pts)
-Reasoning for choice of model selection method (2 pts)
-Carrying out the model selection correctly (5 pts)
-Model diagnostics (5 pts)
-Interpretation of model coefficients (5 pts)
+The variables I will use for my full model are the following:
+
+1. `genre`
+2. `runtime`
+3. `mpaa_rating` 
+4. `imdb_num_votes`
+5. `critics_rating`
+6. `combined_score`
+7. `top200_box`
+8. `best_pic_nom`
+9. `best_pic_win`
+10. `best_actor_win`
+11. `best_dir_win`
+
+I will exclude the `audience_rating` variable as it may be redundant or in conflict with `critics_rating`. Furthermore, I will also exclude the variables related to DVD and theatrical release dates, e.g. `dvd_rel_year`, `dvd_rel_month`, `dvd_rel_day` to simplify things as there are missing data in these variables that I chose not to impute/rectify. The same can be said for `director`, which I have also chosen to exclude as it is highly likely that the `director` variable contains too many unique entries which would make it useless as a factor. In fact, there are `r length(unique(movies.clean$director))` unique directors, which would be way too many levels!
+
+### Fit the model
+```{r modeling}
+
+first <- lm(imdb_rating ~ genre + runtime + mpaa_rating + imdb_num_votes + critics_rating  +
+                    combined_score + top200_box + best_pic_nom + best_pic_win + best_actor_win + best_dir_win, 
+            data = movies.clean)
+
+# summarise the model
+summary(first)
+```
+### Use backward elimination based on p-values to select best model
+
+I have chosen to use the backward elimination method for model selection because I have already fit the full model and going forwards would make zero sense. I have elected to use the p-value criterion as it is easier to find a good starting point for elimination. 
+
+#### Step One - Remove `best_pic_nom`
+
+```{r backwards_elimination}
+# use the update function and remove the highest p-value, best_pic_nom
+first <- update(first, . ~ . -best_pic_nom)
+summary(first)
+```
+#### Step two - Remove `mpaa_rating`
+
+```{r backwards_elimination2}
+# use the update function and remove the highest p-value, mpaa_rating
+first <- update(first, . ~ . -mpaa_rating)
+summary(first)
+```
+#### Step three - Remove `best_actor_win`
+
+```{r backwards_elimination3}
+# use the update function and remove the highest p-value, best_actor_win
+first <- update(first, . ~ . -best_actor_win)
+summary(first)
+```
+#### Step four - Remove `best_dir_win`
+
+```{r backwards_elimination4}
+# use the update function and remove the highest p-value, best_dir_win
+first <- update(first, . ~ . -best_dir_win)
+summary(first)
+```
+#### Step five - Remove `best_pic_win`
+
+```{r backwards_elimination5}
+# use the update function and remove the highest p-value, best_pic_win
+first <- update(first, . ~ . -best_pic_win)
+summary(first)
+```
+
+#### Step six - Remove `top200_box`
+
+```{r backwards_elimination6}
+# use the update function and remove the highest p-value, top200_box
+first <- update(first, . ~ . -top200_box)
+summary(first)
+```
+#### Final model
+
+After six backward elimination steps, we have found our most parsimonious model based on p-values. We do not remove the genre variable because some of its levels are highly significant despite others not being significant at all (e.g. horror). Furthermore, we have also increased our adjusted $R^{2}$ from `0.8118` in the full model to `0.8128` in the most parsimonious model.
+
+### Model diagnostics
+
+For a multiple linear regression model to be valid, it must satisfy the following four criteria:
+
+1. linear relationships between numerical x and y variables
+2. nearly normal residuals
+3. constant variability of residuals
+4. independence of residuals
+
+#### 1. Checking for linear relationships between numerical x and y variables
+To check if our model is valid, we will check for linear relationships between our numerical explanatory and response variables using residual plots. We are looking for a random scatter around `0`. The numerical explanatory variables are:
+
+* `runtime`
+* `imdb_num_votes` and
+* `combined_score`
+
+```{r check-linearity}
+# use base-R plotting to plot residuals from model against each variable from the movies.clean dataframe
+plot(first$residuals ~ movies.clean$runtime)
+
+# use a log transform on the imdb_num_votes to help spread out the data a bit
+plot(first$residuals ~ log(movies.clean$imdb_num_votes))
+
+plot(first$residuals ~ movies.clean$combined_score)
+```
+
+Based on the above plots, the explanatory variables show a random scatter about `0` and therefore exhibit a linear relationship with the response variable's (`imdb_rating`) residuals of the linear model.
+
+#### 2. Checking for nearly normal residuals
+Here I will use the base R plotting functions to plot a histogram and quantile-quantile plot of the model's residuals.
+
+```{r check-normality}
+# plot histogram
+hist(first$residuals)
+# plot qqplot
+qqnorm(first$residuals)
+qqline(first$residuals)
+```
+
+According to the plots above, there is some strong left-skew in the residuals. This is quite evident in both the histogram and the normal qqplot. While there are 651 observations in the `movies.clean` dataframe, which comprise a large sample size, predictions made from this model should be considered carefully on account of the strong left skew in the residuals.
+
+#### 3. Checking for constant variability in residuals (homoscedasticity)
+The residuals should be equally variable for low and high values of the predicted response variable (`imdb_rating`), which we can check by plotting the residuals versus the predicted values (e vs $\widehat{y}$). What we expect to see is the residuals are scattered in a constant band about `0` with no fan shape. If there is heteroscedasticity, we expect to see a fan shape in the plot and in case of the absolute value plot of residuals, a triangle shape.
+
+```{r check-homoscedasticity}
+# plot predicted vs residuals
+plot(first$residuals ~ first$fitted.values)
+
+# plot abs value of residuals
+plot(abs(first$residuals) ~ first$fitted.values)
+```
+
+From the above plots, I would say that we have some slight non-constant variance in the residuals, especially for lower values of the fitted values. This fan shape is reminscient of the residuals plot for the `combined_score` variable above. Given these patterns, I would again be careful with the predictions made with this model. 
+
+#### 4. Checking for independence of residuals
+I do not expect there to be any underlying dependence among the movies as they were randomly sampled. However, we can check for any underlying time-series structure by plotting the residuals versus the order of data collection.
+
+```{r check-independence}
+# plot the residuals
+plot(first$residuals)
+```
+
+As suspected, the movies in the dataset are independent of one another and do not exhibit any underlying time-series structure. 
+
+### Interpretation of model coefficients
+As I have `16` coefficients in my linear model, it would be quite tiresome to interpret each and every one individually. For example, the `genre` variable has `10` levels. Therefore, for the sake of interpretation, I will write the linear equation for predicting the `imdb_rating` for an unknown documentary movie:
+
+$$IMDBRating = 2.677 + 0.03795 * genreDocumentary  + 0.00299 * runtime + 0.000001238 * imdb\_num\_votes \\ + 0.01557 * critics\_ratingFresh + 0.07041 * critics\_ratingRotten + 0.00492 * combined\_score$$
+
+##### Given the equation above, we can intepret the coefficients thusly:
+
+1. Setting all variables to 0, the intercept `2.677` sets the height of the linear regression line. 
+2. If the movie is a documentary, then we add `0.03795` to the intercept value.
+3. For each minute of runtime, we expect the IMDB rating to increase by `0.00299` units. 
+4. For each unit increase in votes, we expect the score to increase by `0.000001238` units.
+5. If a critic's rating is "Fresh", then we add `0.01557` to the IMDB rating, otherwise if it is "Rotten", we only add `0.07041`. If the rating is "Certified Fresh", then nothing is added.
+6. Lastly, for each unit increase in combined score, we expect the IMDB rating to increase by   `0.00492` units. 
+
 
 * * *
 
 ## Part 5: Prediction
 
-Pick a movie from 2016 (a new movie that is not in the sample) and do a prediction for this movie using your the model you developed and the predict function in R. Also quantify the uncertainty around this prediction using an appropriate interval.
+![The Man Who Knew Infinity](theman.jpg)
 
-Correct prediction (2 pts)
-Correct quantification of uncertainty around this prediction with a prediction interval (1 pts)
-Correct interpretation of prediction interval (1 pt)
-Reference(s) for where the data for this movie come from (1 pt)
+The movie I have chosen is one that I have seen recently and really enjoyed. It is called, [*The Man Who Knew Infinity*](https://www.youtube.com/watch?v=NP0lUqNAw3k) starring Dev Patel and Jeremy Irons. It is about a self-taught, brilliant Indian mathematician named Ramanujan and his friendship with his mentor, Professor G.H Hardy. I retrieved the movie data from its [Rotten Tomatoes](https://www.rottentomatoes.com/m/the_man_who_knew_infinity/) page. Its [IMDB](http://www.imdb.com/title/tt0787524/?ref_=fn_al_tt_1) rating as of `r format(Sys.Date(), "%B %d, %Y")` is `7.2`. 
+
+
+
+```{r my-movie}
+# check to make sure my movie choice does not exist in the dataframe
+grep("Infinity", movies.clean$title, ignore.case = TRUE)
+
+# all ok, my movie is not in the movies.data; create the new dataframe that I'll use for predictions 
+the.man.who.knew.infinity.2016 <- data.frame(genre = "Art House & International", runtime = 108,
+                                             imdb_num_votes = 27398, critics_rating = "Fresh",
+                                             combined_score = mean(c(61,72)))
+
+# run the prediction and include the prediction interval in the output
+predict(first, the.man.who.knew.infinity.2016, interval = "predict")
+
+```
+
+#### Interpretation of prediction
+Based on the linear model that I have constructed, we have obtained a predicted IMDB rating of `6.84` that falls within a 95% confidence interval of `(5.88, 7.80)`. Therefore, we are 95% confident that the true IMDB rating of *The Man Who Knew Infinity* is between `5.88` and `7.80`. 
+
+Given that we know the actual value is indeed `7.2`, I'd venture to say that our model did a pretty good job of predicting the rating.  
 
 * * *
 
 ## Part 6: Conclusion
 
-A brief summary of your findings from the previous sections without repeating your statements from earlier as well as a discussion of what you have learned about the data and your research question. You should also discuss any shortcomings of your current study (either due to data collection or methodology) and include ideas for possible future research.
+As a reminder, the research question that I proposed at the beginning of this project was the following: 
 
-Conclusion not repetitive of earlier statements (1 pt)
-Cohesive synthesis of findings that appropriate address the research question stated earlier (1 pt)
-Discussion of shortcomings (1 pt)
+##### What factors are associated with movie popularity and can we use these factors to predict if a movie is popular?
+
+I chose to define movie popularity by a movie's IMDB rating. The higher the IMDB rating, the more "popular" the movie. Based on this definition, I created a linear model to predict a movie's IMDB rating that used features such as the runtime of the movie, a combined score of critics and audience scores from Rotten Tomatoes and the number of votes at IMDB per movie, to name a few. The model I created yielded an adjusted ${R}^2$ of `0.8128`, meaning that roughly 81% of the variability in a movie's "popularity" (i.e. IMDB rating) can be explained by the chosen features within my linear model. 
+
+While the model I generated predicted a 95% confidence interval that actually contained the true IMDB rating for the movie I selected, the model had at least one red flag: there is some non-constant variance and strong left skew in the residuals (see Model diagnostics above) for lowly rated movies, which could affect the validity of the model.
+
+Another shortcoming of my approach was that I simply ignored all variables related to release dates. It could be rather important to consider how the timing of a movie's release may impact its popularity. Another glaring weakness of my approach is to equate popularity with IMDB rating, as there could be many movies that are popular, but rated poorly. Lastly, using a p-value based approach for model selection may have yielded an inferior model in terms of predicitive power. 
+
+Future work could include the exploration of more features/variables to increase the accuracy of the model's predictions, in addition to exploring alternative model selection strategies. We could also take a larger sample size of movies that would presumably help in increasing predicitive power and accuracy.
+
