@@ -376,9 +376,35 @@ summary(first)
 ## Multiple R-squared:  0.819,	Adjusted R-squared:  0.8118 
 ## F-statistic: 113.1 on 25 and 625 DF,  p-value: < 2.2e-16
 ```
+
+```r
+# check importance of categorical variables
+anova(first)
+```
+
+```
+## Analysis of Variance Table
+## 
+## Response: imdb_rating
+##                 Df  Sum Sq Mean Sq  F value    Pr(>F)    
+## genre           10 174.460  17.446  78.7628 < 2.2e-16 ***
+## runtime          1  37.891  37.891 171.0634 < 2.2e-16 ***
+## mpaa_rating      5  16.977   3.395  15.3292 3.135e-14 ***
+## imdb_num_votes   1  80.929  80.929 365.3675 < 2.2e-16 ***
+## critics_rating   2 113.497  56.749 256.2001 < 2.2e-16 ***
+## combined_score   1 202.147 202.147 912.6218 < 2.2e-16 ***
+## top200_box       1   0.226   0.226   1.0196    0.3130    
+## best_pic_nom     1   0.053   0.053   0.2380    0.6258    
+## best_pic_win     1   0.072   0.072   0.3244    0.5692    
+## best_actor_win   1   0.091   0.091   0.4100    0.5222    
+## best_dir_win     1   0.058   0.058   0.2620    0.6089    
+## Residuals      625 138.438   0.222                       
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+```
 ### Use backward elimination based on p-values to select best model
 
-I have chosen to use the backward elimination method for model selection because I have already fit the full model and going forwards would make zero sense. I have elected to use the p-value criterion as it is easier to find a good starting point for elimination. 
+I have chosen to use the backward elimination method for model selection because I have already fit the full model and going forwards would make zero sense. I have elected to use the p-value criterion, as I am interested in finding the statistically significant predictors of `imdb_rating`. It should be noted that following an adjusted ${R}^2$ approach would allow for finding the variables with the most predictive power, irrespective of their statistical significance. **NOTE TO SELF: Is it advisable to use the ANOVA table for variable elimination?**
 
 #### Step One - Remove `best_pic_nom`
 
@@ -786,7 +812,7 @@ $$IMDBRating = 2.677 + 0.03795 * genreDocumentary  + 0.00299 * runtime + 0.00000
 
 ![The Man Who Knew Infinity](theman.jpg)
 
-The movie I have chosen is one that I have seen recently and really enjoyed. It is called, [*The Man Who Knew Infinity*](https://www.youtube.com/watch?v=NP0lUqNAw3k) starring Dev Patel and Jeremy Irons. It is about a self-taught, brilliant Indian mathematician named Ramanujan and his friendship with his mentor, Professor G.H Hardy. I retrieved the movie data from its [Rotten Tomatoes](https://www.rottentomatoes.com/m/the_man_who_knew_infinity/) page. Its [IMDB](http://www.imdb.com/title/tt0787524/?ref_=fn_al_tt_1) rating as of March 20, 2017 is `7.2`. 
+The movie I have chosen is one that I have seen recently and really enjoyed. It is called, [*The Man Who Knew Infinity*](https://www.youtube.com/watch?v=NP0lUqNAw3k) starring Dev Patel and Jeremy Irons. It is about a self-taught, brilliant Indian mathematician named Ramanujan and his friendship with his mentor, Professor G.H Hardy. I retrieved the movie data from its [Rotten Tomatoes](https://www.rottentomatoes.com/m/the_man_who_knew_infinity/) page. Its [IMDB](http://www.imdb.com/title/tt0787524/?ref_=fn_al_tt_1) rating as of March 23, 2017 is `7.2`. 
 
 
 
@@ -816,7 +842,7 @@ predict(first, the.man.who.knew.infinity.2016, interval = "predict")
 ```
 
 #### Interpretation of prediction
-Based on the linear model that I have constructed, we have obtained a predicted IMDB rating of `6.84` that falls within a 95% confidence interval of `(5.88, 7.80)`. Therefore, we are 95% confident that the true IMDB rating of *The Man Who Knew Infinity* is between `5.88` and `7.80`. 
+Based on the linear model that I have constructed, we have obtained a predicted IMDB rating of `6.84` that falls within a 95% prediction interval of `(5.88, 7.80)`. Therefore, we are 95% confident that the true IMDB rating of *The Man Who Knew Infinity* is between `5.88` and `7.80`. 
 
 Given that we know the actual value is indeed `7.2`, I'd venture to say that our model did a pretty good job of predicting the rating.  
 

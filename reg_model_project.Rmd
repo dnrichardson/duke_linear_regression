@@ -198,10 +198,12 @@ first <- lm(imdb_rating ~ genre + runtime + mpaa_rating + imdb_num_votes + criti
 
 # summarise the model
 summary(first)
+# check importance of categorical variables
+anova(first)
 ```
 ### Use backward elimination based on p-values to select best model
 
-I have chosen to use the backward elimination method for model selection because I have already fit the full model and going forwards would make zero sense. I have elected to use the p-value criterion as it is easier to find a good starting point for elimination. 
+I have chosen to use the backward elimination method for model selection because I have already fit the full model and going forwards would make zero sense. I have elected to use the p-value criterion, as I am interested in finding the statistically significant predictors of `imdb_rating`. It should be noted that following an adjusted ${R}^2$ approach would allow for finding the variables with the most predictive power, irrespective of their statistical significance. **NOTE TO SELF: Is it advisable to use the ANOVA table for variable elimination?**
 
 #### Step One - Remove `best_pic_nom`
 
@@ -354,7 +356,7 @@ predict(first, the.man.who.knew.infinity.2016, interval = "predict")
 ```
 
 #### Interpretation of prediction
-Based on the linear model that I have constructed, we have obtained a predicted IMDB rating of `6.84` that falls within a 95% confidence interval of `(5.88, 7.80)`. Therefore, we are 95% confident that the true IMDB rating of *The Man Who Knew Infinity* is between `5.88` and `7.80`. 
+Based on the linear model that I have constructed, we have obtained a predicted IMDB rating of `6.84` that falls within a 95% prediction interval of `(5.88, 7.80)`. Therefore, we are 95% confident that the true IMDB rating of *The Man Who Knew Infinity* is between `5.88` and `7.80`. 
 
 Given that we know the actual value is indeed `7.2`, I'd venture to say that our model did a pretty good job of predicting the rating.  
 
